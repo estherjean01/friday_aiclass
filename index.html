@@ -106,13 +106,13 @@
                     <span>AI 連線設定</span>
                 </h3>
                 <div class="space-y-2">
-                    <label class="block text-xs font-bold text-slate-600 mb-1.5">Hugging Face Token (HF_TOKEN)</label>
-                    <input type="password" id="hf-token" placeholder="請輸入您的 HF_TOKEN" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 bg-slate-50">
+                    <label class="block text-xs font-bold text-slate-600 mb-1.5">Gemini API Key</label>
+                    <input type="password" id="hf-token" placeholder="請貼上 AIza 開頭的 API Key" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 bg-slate-50">
                     <label class="flex items-center space-x-2 text-xs text-slate-500 cursor-pointer pt-1">
                         <input type="checkbox" id="remember-token" class="accent-orange-500">
-                        <span>在這台電腦記住 Token（公用電腦請勿勾選）</span>
+                        <span>在這台電腦記住 API Key（公用電腦請勿勾選）</span>
                     </label>
-                    <p class="text-[11px] text-slate-400 leading-relaxed">使用模型：Gemma 4 31B（google/gemma-4-31B-it），透過 Hugging Face Inference Providers 呼叫。</p>
+                    <p class="text-[11px] text-slate-400 leading-relaxed">使用模型：Google Gemini（gemini-3.5-flash-lite）。API Key 可在 <a href="https://aistudio.google.com/apikey" target="_blank" class="text-orange-600 underline">Google AI Studio</a> 免費申請。</p>
                 </div>
             </div>
             
@@ -197,7 +197,7 @@
                 </div>
                 <h3 class="text-xl font-bold text-slate-800 mb-2">尚無評分分析結果</h3>
                 <p class="text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
-                    請於左側輸入 HF Token、選擇繪畫主題並上傳學生畫作（或使用相機拍照），接著點擊「開始 AI 輔助評分與分析」，即可產生四向度評分儀表板與回饋建議。
+                    請於左側輸入 Gemini API Key、選擇繪畫主題並上傳學生畫作（或使用相機拍照），接著點擊「開始 AI 輔助評分與分析」，即可產生四向度評分儀表板與回饋建議。
                 </p>
             </div>
 
@@ -318,7 +318,7 @@
 
                             <div class="bg-orange-50/70 border border-orange-100 rounded-2xl p-3 text-[11px] text-slate-600 leading-relaxed">
                                 <i class="fa-solid fa-circle-info text-orange-500 mr-1"></i>
-                                系統將畫作與主題送交多模態大型語言模型（Gemma 4），依固定的四個向度與評分規準進行分析；學生姓名不會傳送給 AI，以減少月暈效應等人為偏誤。AI 分數僅供教師參考，最終評定仍由教師判斷。
+                                系統將畫作與主題送交多模態大型語言模型（Google Gemini），依固定的四個向度與評分規準進行分析；學生姓名不會傳送給 AI，以減少月暈效應等人為偏誤。AI 分數僅供教師參考，最終評定仍由教師判斷。
                             </div>
                         </div>
 
@@ -395,9 +395,9 @@
 
     <!-- JavaScript Application Logic -->
     <script>
-        // ===== 模型設定（Hugging Face Inference Providers + Gemma 4 31B） =====
-        const HF_API_URL = "https://router.huggingface.co/v1/chat/completions";
-        const HF_MODEL = "google/gemma-4-31B-it";
+        // ===== 模型設定（Google Gemini API） =====
+        const GEMINI_MODEL = "gemini-3.5-flash-lite";
+        const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
         let uploadedImageBase64 = null;
         let radarChartInstance = null;
@@ -407,11 +407,11 @@
         let bgmInterval = null;
         let toastTimer = null;
 
-        // ===== 記住 Token（只存在使用者自己的瀏覽器） =====
+        // ===== 記住 API Key（只存在使用者自己的瀏覽器） =====
         const tokenInput = document.getElementById('hf-token');
         const rememberBox = document.getElementById('remember-token');
         try {
-            const saved = localStorage.getItem('hf_token');
+            const saved = localStorage.getItem('gemini_api_key');
             if (saved) {
                 tokenInput.value = saved;
                 rememberBox.checked = true;
@@ -421,9 +421,9 @@
         function syncTokenStorage() {
             try {
                 if (rememberBox.checked && tokenInput.value.trim()) {
-                    localStorage.setItem('hf_token', tokenInput.value.trim());
+                    localStorage.setItem('gemini_api_key', tokenInput.value.trim());
                 } else if (!rememberBox.checked) {
-                    localStorage.removeItem('hf_token');
+                    localStorage.removeItem('gemini_api_key');
                 }
             } catch (e) {}
         }
@@ -652,7 +652,7 @@
             const analyzeBtnText = document.getElementById('analyze-btn-text');
 
             if (!token) {
-                showToast('請先輸入 Token', '請在「AI 連線設定」輸入 Hugging Face Token。', 'error');
+                showToast('請先輸入 API Key', '請在「AI 連線設定」輸入 Gemini API Key。', 'error');
                 tokenInput.focus();
                 return;
             }
@@ -684,37 +684,44 @@
             try {
                 const imageForAI = await compressDataUrl(uploadedImageBase64);
 
-                const response = await fetch(HF_API_URL, {
+                const response = await fetch(`${GEMINI_API_URL}?key=${encodeURIComponent(token)}`, {
                     method: "POST",
-                    headers: {
-                        "Authorization": `Bearer ${token}`,
-                        "Content-Type": "application/json"
-                    },
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        model: HF_MODEL,
-                        messages: [{
+                        contents: [{
                             role: "user",
-                            content: [
-                                { type: "text", text: buildPrompt(topic) },
-                                { type: "image_url", image_url: { url: imageForAI } }
+                            parts: [
+                                { text: buildPrompt(topic) },
+                                { inlineData: { mimeType: "image/jpeg", data: imageForAI.split(',')[1] } }
                             ]
                         }],
-                        max_tokens: 800,
-                        temperature: 0.2 // 溫度調低，讓同一張畫的評分更穩定
+                        generationConfig: {
+                            temperature: 0.2, // 溫度調低，讓同一張畫的評分更穩定
+                            responseMimeType: "application/json"
+                        }
                     })
                 });
 
                 const data = await response.json().catch(() => ({}));
 
                 if (!response.ok) {
-                    if (response.status === 401) {
-                        throw new Error('Token 無效或已過期，請確認 HF_TOKEN 是否正確');
+                    const msg = data.error?.message || '';
+                    if (response.status === 400 && /API key/i.test(msg)) {
+                        throw new Error('API Key 無效，請確認是否完整貼上 AIza 開頭的金鑰');
                     }
-                    throw new Error(data.error?.message || data.error || `伺服器回應錯誤（${response.status}）`);
+                    if (response.status === 403) {
+                        throw new Error('這組 API Key 沒有使用權限，請到 Google AI Studio 重新建立一組');
+                    }
+                    if (response.status === 429) {
+                        throw new Error('免費額度暫時用完或呼叫太頻繁，請等一分鐘再試；若仍失敗，代表今天的額度已用完（台灣時間下午 3～4 點重置）');
+                    }
+                    throw new Error(msg || `伺服器回應錯誤（${response.status}）`);
                 }
 
-                const content = data.choices?.[0]?.message?.content;
-                if (!content) throw new Error('AI 沒有回傳內容，請再試一次');
+                const content = (data.candidates?.[0]?.content?.parts || [])
+                    .map(part => part.text || '')
+                    .join('');
+                if (!content) throw new Error('AI 沒有回傳內容，可能是圖片被安全機制擋下，請換一張再試');
 
                 const raw = parseModelJson(content);
                 const result = {
