@@ -1,424 +1,848 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-TW" class="h-full">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gemma 多模態影像分析助手</title>
+    <title>童心藝彩：AI 創意圖畫輔助評分與儀表板系統</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js for Radar & Bar Charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts: Noto Sans TC -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Noto Sans TC"', 'sans-serif'],
+                    },
+                    colors: {
+                        art: {
+                            50: '#fdf8f6',
+                            100: '#fbe8e3',
+                            500: '#ff6b4a',
+                            600: '#e8522d',
+                            700: '#c53d1c',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        :root {
-            --bg-color: #f7f3e8;
-            --bg-glow-1: rgba(0, 0, 0, 0);
-            --bg-glow-2: rgba(0, 0, 0, 0);
-            --card-bg: #ffffff;
-            --border-glow: #e3dccb;
-            --neon-cyan: #2f5d8a;
-            --neon-purple: #2f5d8a;
-            --text-main: #1f2937;
-            --text-muted: #4b5563;
-            --field-bg: #fffdf8;
-            --field-border: #d6cdbb;
-            --result-bg: #fffdf8;
-            --result-border: #e3dccb;
-            --result-shadow: none;
-            --result-text: #1f2937;
-            --on-accent: #ffffff;
-            --card-shadow: 0 4px 12px rgba(31, 41, 55, 0.08);
-            --card-inset: none;
-            color-scheme: light;
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #printable-dashboard, #printable-dashboard * {
+                visibility: visible;
+            }
+            #printable-dashboard {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+            }
+            .no-print {
+                display: none !important;
+            }
         }
-
-        /* An explicit dark choice wins over the system setting. */
-        :root[data-theme="dark"] {
-            --bg-color: #021f2e;
-            --bg-glow-1: rgba(6, 182, 212, 0.18);
-            --bg-glow-2: rgba(14, 165, 233, 0.12);
-            --card-bg: rgba(3, 37, 53, 0.78);
-            --border-glow: rgba(34, 211, 238, 0.3);
-            --neon-cyan: #22d3ee;
-            --neon-purple: #0ea5e9;
-            --text-main: #e0f7ff;
-            --text-muted: #7fb8c9;
-            --field-bg: rgba(2, 31, 46, 0.7);
-            --field-border: rgba(125, 211, 252, 0.2);
-            --result-bg: rgba(2, 31, 46, 0.85);
-            --result-border: rgba(125, 211, 252, 0.12);
-            --result-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35);
-            --result-text: #cffafe;
-            --on-accent: #021f2e;
-            --card-shadow: 0 0 30px rgba(34, 211, 238, 0.12);
-            --card-inset: inset 0 0 15px rgba(14, 165, 233, 0.08);
-            color-scheme: dark;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            max-width: 650px;
-            margin: 40px auto;
-            padding: 20px;
-            background-color: var(--bg-color);
-            background-image: none;
-            color: var(--text-main);
-            min-height: 100vh;
-            line-height: 1.6;
-            transition: background-color 0.3s ease, color 0.3s ease;
-        }
-
-        .card {
-            background: var(--card-bg);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            padding: 30px;
-            border-radius: 16px;
-            border: 1px solid var(--border-glow);
-            box-shadow: var(--card-shadow), var(--card-inset);
-            position: relative;
-            overflow: hidden;
-            transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
-        }
-
-        .card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 2px;
-            background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent);
-            animation: scanline 4s linear infinite;
-        }
-
-        @keyframes scanline {
-            0% { left: -100%; }
-            100% { left: 100%; }
-        }
-
-        h2 {
-            margin-top: 0;
-            padding-right: 6.5rem;
-            font-size: 1.8rem;
-            background: linear-gradient(135deg, var(--neon-cyan), var(--neon-purple));
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-            letter-spacing: 0.5px;
-        }
-
-        /* The theme switch: light, dark, or the system's own. */
-        .theme-toggle {
-            position: absolute;
-            top: 16px;
-            right: 16px;
-            z-index: 1;
-            width: auto;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 12px;
-            border-radius: 999px;
-            border: 1px solid var(--field-border);
-            background: var(--field-bg);
-            color: var(--text-main);
-            font-size: 0.8rem;
-            font-weight: 600;
-            letter-spacing: 0;
-            cursor: pointer;
-            box-shadow: none;
-            transition: all 0.2s ease;
-        }
-
-        .theme-toggle:hover {
-            opacity: 1;
-            transform: none;
-            border-color: var(--neon-cyan);
-            box-shadow: 0 0 10px rgba(14, 165, 233, 0.2);
-        }
-
-        .theme-toggle .glyph {
-            font-size: 0.95rem;
-            line-height: 1;
-        }
-
-        p {
-            color: var(--text-muted);
-            font-size: 0.95rem;
-            margin-bottom: 24px;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        label {
-            display: block;
-            font-weight: 600;
-            margin-bottom: 8px;
-            font-size: 0.9rem;
-            color: var(--neon-cyan);
-            letter-spacing: 0.5px;
-        }
-
-        input[type="password"],
-        input[type="text"],
-        input[type="file"],
-        textarea {
-            width: 100%;
-            padding: 12px 14px;
-            background: var(--field-bg);
-            border: 1px solid var(--field-border);
-            border-radius: 8px;
-            box-sizing: border-box;
-            color: var(--text-main);
-            font-size: 0.95rem;
-            transition: all 0.3s ease;
-        }
-
-        input:focus {
-            outline: none;
-            border-color: var(--neon-cyan);
-            box-shadow: 0 0 10px rgba(14, 165, 233, 0.25);
-        }
-
-        input[type="file"]::file-selector-button {
-            background: rgba(14, 165, 233, 0.1);
-            color: var(--neon-cyan);
-            border: 1px solid var(--border-glow);
-            padding: 6px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        input[type="file"]::file-selector-button:hover {
-            background: var(--neon-cyan);
-            color: #ffffff;
-        }
-
-        button {
-            background: linear-gradient(135deg, var(--neon-cyan), var(--neon-purple));
-            color: #ffffff;
-            border: none;
-            padding: 12px 20px;
-            font-weight: 700;
-            border-radius: 8px;
-            cursor: pointer;
-            width: 100%;
-            font-size: 1rem;
-            letter-spacing: 1px;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(14, 165, 233, 0.2);
-        }
-
-        button:hover {
-            opacity: 0.92;
-            transform: translateY(-1px);
-            box-shadow: 0 6px 20px rgba(124, 58, 237, 0.35);
-        }
-
-        button:disabled {
-            background: #cbd5e1;
-            color: #94a3b8;
-            cursor: not-allowed;
-            box-shadow: none;
-            transform: none;
-        }
-
-        #preview-container {
-            margin-top: 12px;
-            text-align: center;
-        }
-
-        #imagePreview {
-            max-width: 100%;
-            max-height: 250px;
-            border-radius: 8px;
-            display: none;
-            border: 1px solid var(--border-glow);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        }
-
-        #result {
-            margin-top: 12px;
-            padding: 16px;
-            background: var(--result-bg);
-            border: 1px solid var(--result-border);
-            border-radius: 8px;
-            white-space: pre-wrap;
-            min-height: 60px;
-            font-size: 0.95rem;
-            color: var(--result-text);
-            box-shadow: var(--result-shadow);
+        .pulse-slow {
+            animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
     </style>
 </head>
-<body>
-    <div class="card">
-        <button type="button" class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="切換深淺色外觀">
-            <span class="glyph">☀️</span>
-            <span id="themeText">淺色模式</span>
-        </button>
-        <h2>Gemma 多模態影像分析助手</h2>
-        <p>透過 Hugging Face Router 呼叫 gemma-4-31B-it 模型進行高精度影像辨識與分析。</p>
-        
-        <div class="form-group">
-            <label for="apiKey">Hugging Face Token (HF_TOKEN)</label>
-            <input type="password" id="apiKey" placeholder="請輸入您的 HF_TOKEN">
-        </div>
-        
-        <div class="form-group">
-            <label for="imageInput">上傳圖片</label>
-            <input type="file" id="imageInput" accept="image/*" onchange="previewSelectedImage(event)">
-            <div id="preview-container">
-                <img id="imagePreview" alt="圖片預覽">
-            </div>
-        </div>
-        
-        <div class="form-group">
-            <label for="promptInput">輸入提示詞 (Prompt)</label>
-            <input type="text" id="promptInput" value="Describe this image in one sentence in chinese">
-        </div>
-        
-        <button id="submitBtn" onclick="analyzeImage()">啟動分析</button>
-        
-        <div class="form-group" style="margin-top: 24px;">
-            <label>模型回應</label>
-            <div id="result">系統待命，尚未開始分析...</div>
+<body class="bg-gradient-to-br from-orange-50 via-amber-50 to-rose-50 min-h-full font-sans text-slate-700 flex flex-col selection:bg-amber-200 selection:text-amber-800">
+
+    <!-- Toast Notification / Custom Alert Modal -->
+    <div id="toast" class="fixed top-5 right-5 z-50 transform translate-x-[120%] transition-transform duration-300 bg-white border-l-4 border-amber-500 shadow-xl rounded-xl p-4 flex items-center space-x-3 max-w-sm">
+        <div id="toast-icon" class="text-amber-500 text-xl"><i class="fa-solid fa-circle-info"></i></div>
+        <div>
+            <h4 id="toast-title" class="font-bold text-slate-800 text-sm">提示</h4>
+            <p id="toast-msg" class="text-xs text-slate-600">操作訊息內容</p>
         </div>
     </div>
 
+    <!-- Header -->
+    <header class="bg-white/80 backdrop-blur-md border-b border-orange-100 sticky top-0 z-40 px-6 py-4 shadow-sm">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="bg-gradient-to-tr from-orange-500 to-amber-500 text-white w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/30 text-xl font-black">
+                    <i class="fa-solid fa-palette"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-black bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">童心藝彩</h1>
+                    <p class="text-xs text-slate-500 font-medium">AI 創意圖畫輔助評分與儀表板系統（國中小藝文專用）</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center space-x-3">
+                <!-- BGM Toggle Button -->
+                <button id="bgm-toggle" onclick="toggleBGM()" class="bg-amber-100 hover:bg-amber-200 text-amber-800 px-4 py-2 rounded-xl text-sm font-bold transition flex items-center space-x-2 shadow-sm">
+                    <i id="bgm-icon" class="fa-solid fa-volume-xmark"></i>
+                    <span id="bgm-text">開啟藝文音樂</span>
+                </button>
+                <div class="bg-orange-50 text-orange-700 border border-orange-200 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1.5">
+                    <i class="fa-solid fa-shield-halved"></i>
+                    <span>降低人為偏誤．提高評分一致性</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 py-8 flex-grow w-full grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <!-- Left Panel: Input & Controls (col-span-4) -->
+        <div class="lg:col-span-4 space-y-6">
+
+            <!-- AI Connection Card -->
+            <div class="bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-xl shadow-orange-500/5 border border-orange-100">
+                <h3 class="text-base font-bold text-slate-800 mb-4 flex items-center space-x-2">
+                    <i class="fa-solid fa-key text-orange-500"></i>
+                    <span>AI 連線設定</span>
+                </h3>
+                <div class="space-y-2">
+                    <label class="block text-xs font-bold text-slate-600 mb-1.5">Hugging Face Token (HF_TOKEN)</label>
+                    <input type="password" id="hf-token" placeholder="請輸入您的 HF_TOKEN" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 bg-slate-50">
+                    <label class="flex items-center space-x-2 text-xs text-slate-500 cursor-pointer pt-1">
+                        <input type="checkbox" id="remember-token" class="accent-orange-500">
+                        <span>在這台電腦記住 Token（公用電腦請勿勾選）</span>
+                    </label>
+                    <p class="text-[11px] text-slate-400 leading-relaxed">使用模型：Gemma 4 31B（google/gemma-4-31B-it），透過 Hugging Face Inference Providers 呼叫。</p>
+                </div>
+            </div>
+            
+            <!-- Student / Artwork Meta Card -->
+            <div class="bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-xl shadow-orange-500/5 border border-orange-100">
+                <h3 class="text-base font-bold text-slate-800 mb-4 flex items-center space-x-2">
+                    <i class="fa-solid fa-user-pen text-orange-500"></i>
+                    <span>作品基本資訊</span>
+                </h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1.5">學生姓名或座號</label>
+                        <input type="text" id="student-name" placeholder="例如：五年三班 12號 王小明" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 bg-slate-50">
+                        <p class="text-[11px] text-slate-400 mt-1"><i class="fa-solid fa-user-shield mr-1"></i>姓名只顯示在報告上，不會傳送給 AI（匿名評分）。</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1.5">繪畫主題選擇</label>
+                        <select id="art-topic" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 bg-slate-50 font-medium">
+                            <option value="夏日">☀️ 夏日 (Summer)</option>
+                            <option value="海邊">🌊 海邊 (Beach)</option>
+                            <option value="森林">🌲 森林 (Forest)</option>
+                            <option value="人物">👤 人物 (Portrait / Character)</option>
+                            <option value="冬季">⛄ 冬季 (Winter)</option>
+                            <option value="秋季">🍁 秋季 (Autumn)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Image Upload & Camera Capture Card -->
+            <div class="bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-xl shadow-orange-500/5 border border-orange-100">
+                <h3 class="text-base font-bold text-slate-800 mb-4 flex items-center space-x-2">
+                    <i class="fa-solid fa-camera-retro text-orange-500"></i>
+                    <span>畫作上傳或拍照</span>
+                </h3>
+                
+                <!-- Upload Dropzone -->
+                <div id="dropzone" class="border-2 border-dashed border-orange-200 hover:border-orange-400 bg-orange-50/50 rounded-2xl p-6 text-center cursor-pointer transition relative group overflow-hidden">
+                    <input type="file" id="file-input" accept="image/*" class="absolute inset-0 opacity-0 cursor-pointer z-10" onchange="handleFileSelect(event)">
+                    <div id="upload-prompt" class="space-y-3">
+                        <div class="w-14 h-14 bg-white rounded-2xl mx-auto flex items-center justify-center text-orange-500 shadow-md group-hover:scale-110 transition">
+                            <i class="fa-solid fa-cloud-arrow-up text-2xl"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm font-bold text-slate-700">點擊或拖放畫作至此處</p>
+                            <p class="text-xs text-slate-400 mt-0.5">支援 JPG, PNG, WEBP</p>
+                        </div>
+                    </div>
+                    <!-- Preview Image -->
+                    <div id="preview-container" class="hidden relative">
+                        <img id="image-preview" src="#" alt="畫作預覽" class="max-h-56 mx-auto rounded-xl object-contain shadow-md">
+                        <button type="button" onclick="clearImage(event)" class="absolute top-2 right-2 z-20 bg-red-500 hover:bg-red-600 text-white w-8 h-8 rounded-full flex items-center justify-center text-xs shadow-lg transition">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Camera Action Button -->
+                <div class="mt-4 flex gap-2">
+                    <button type="button" onclick="openCameraModal()" class="flex-1 bg-amber-500 hover:bg-amber-600 text-white py-3 px-4 rounded-xl text-sm font-bold transition flex items-center justify-center space-x-2 shadow-md shadow-amber-500/20">
+                        <i class="fa-solid fa-camera"></i>
+                        <span>使用相機拍照</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Analysis Trigger Button -->
+            <button onclick="startAIEvaluation()" id="analyze-btn" class="w-full bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 disabled:from-slate-400 disabled:to-slate-400 disabled:cursor-not-allowed text-white font-bold py-4 px-6 rounded-2xl shadow-xl shadow-orange-500/30 transition transform hover:-translate-y-0.5 flex items-center justify-center space-x-3 text-base">
+                <i class="fa-solid fa-wand-magic-sparkles text-xl"></i>
+                <span id="analyze-btn-text">開始 AI 輔助評分與分析</span>
+            </button>
+
+        </div>
+
+        <!-- Right Panel: Dashboard (col-span-8) -->
+        <div class="lg:col-span-8 space-y-6">
+            
+            <!-- Empty / Initial State -->
+            <div id="empty-state" class="bg-white/90 backdrop-blur-sm rounded-3xl p-12 text-center shadow-xl shadow-orange-500/5 border border-orange-100 flex flex-col items-center justify-center min-h-[500px]">
+                <div class="w-24 h-24 bg-orange-100 text-orange-500 rounded-full flex items-center justify-center text-4xl mb-6 shadow-inner animate-bounce">
+                    <i class="fa-solid fa-paintbrush"></i>
+                </div>
+                <h3 class="text-xl font-bold text-slate-800 mb-2">尚無評分分析結果</h3>
+                <p class="text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
+                    請於左側輸入 HF Token、選擇繪畫主題並上傳學生畫作（或使用相機拍照），接著點擊「開始 AI 輔助評分與分析」，即可產生四向度評分儀表板與回饋建議。
+                </p>
+            </div>
+
+            <!-- Loading State -->
+            <div id="loading-state" class="hidden bg-white/90 backdrop-blur-sm rounded-3xl p-12 text-center shadow-xl shadow-orange-500/5 border border-orange-100 flex flex-col items-center justify-center min-h-[500px]">
+                <div class="relative w-24 h-24 mb-6">
+                    <div class="absolute inset-0 rounded-full border-4 border-orange-200"></div>
+                    <div class="absolute inset-0 rounded-full border-4 border-orange-600 border-t-transparent animate-spin"></div>
+                    <div class="absolute inset-0 flex items-center justify-center text-orange-600 text-2xl">
+                        <i class="fa-solid fa-brain animate-pulse"></i>
+                    </div>
+                </div>
+                <h3 class="text-xl font-bold text-slate-800 mb-2" id="loading-status-text">AI 正在解析畫作中...</h3>
+                <p class="text-xs text-slate-400">多模態大型語言模型正依四個向度分析畫作，約需 10～30 秒，請稍候</p>
+            </div>
+
+            <!-- Dashboard Results Container -->
+            <div id="dashboard-container" class="hidden space-y-6">
+                
+                <!-- Printable Wrapper -->
+                <div id="printable-dashboard" class="space-y-6">
+                    
+                    <!-- Top Summary Header Card -->
+                    <div class="bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-xl shadow-orange-500/5 border border-orange-100 flex flex-col sm:flex-row items-center justify-between gap-6">
+                        <div class="flex items-center space-x-4">
+                            <div class="relative w-20 h-20 flex items-center justify-center bg-gradient-to-tr from-orange-500 to-amber-500 text-white rounded-2xl shadow-lg">
+                                <span id="score-number" class="text-3xl font-black">--</span>
+                                <span class="absolute bottom-1 text-[10px] font-bold opacity-85">/ 100</span>
+                            </div>
+                            <div>
+                                <div class="flex items-center space-x-2 mb-1">
+                                    <span id="result-student" class="text-xs bg-orange-100 text-orange-700 px-2.5 py-1 rounded-lg font-bold">未具名同學</span>
+                                    <span id="result-topic" class="text-xs bg-amber-100 text-amber-800 px-2.5 py-1 rounded-lg font-bold">主題：夏日</span>
+                                </div>
+                                <h2 class="text-2xl font-black text-slate-800" id="badge-title">--</h2>
+                                <p class="text-xs text-slate-400 mt-0.5">由多模態大型語言模型依四向度評分，總分為四項平均</p>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center space-x-3 no-print">
+                            <button onclick="speakFeedback()" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center space-x-2 border border-indigo-200">
+                                <i class="fa-solid fa-volume-high text-sm"></i>
+                                <span>聆聽語音評語</span>
+                            </button>
+                            <button onclick="window.print()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center space-x-2 border border-slate-200">
+                                <i class="fa-solid fa-print text-sm"></i>
+                                <span>列印評分報告</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Grid: Chart & Metrics -->
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+                        
+                        <!-- Radar Chart Box (col-5) -->
+                        <div class="md:col-span-5 bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-xl shadow-orange-500/5 border border-orange-100 flex flex-col justify-between">
+                            <h4 class="text-sm font-bold text-slate-800 mb-4 flex items-center space-x-2">
+                                <i class="fa-solid fa-chart-pie text-orange-500"></i>
+                                <span>四向度評分雷達圖</span>
+                            </h4>
+                            <div class="relative w-full aspect-square flex items-center justify-center">
+                                <canvas id="radarChart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- 4 Dimension Detail Bars (col-7) -->
+                        <div class="md:col-span-7 bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-xl shadow-orange-500/5 border border-orange-100 flex flex-col justify-between space-y-4">
+                            <h4 class="text-sm font-bold text-slate-800 flex items-center space-x-2">
+                                <i class="fa-solid fa-list-check text-orange-500"></i>
+                                <span>各向度量化評分</span>
+                            </h4>
+                            
+                            <div class="space-y-3.5">
+                                <!-- Dim 1 -->
+                                <div>
+                                    <div class="flex justify-between text-xs font-bold mb-1">
+                                        <span class="text-slate-700"><i class="fa-solid fa-pen-nib text-orange-500 mr-1.5"></i>線條流暢度 (Line Smoothness)</span>
+                                        <span id="score-line" class="text-orange-600 font-black">-- / 100</span>
+                                    </div>
+                                    <div class="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                                        <div id="bar-line" class="bg-gradient-to-r from-orange-500 to-amber-500 h-full rounded-full transition-all duration-1000" style="width: 0%"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Dim 2 -->
+                                <div>
+                                    <div class="flex justify-between text-xs font-bold mb-1">
+                                        <span class="text-slate-700"><i class="fa-solid fa-lightbulb text-amber-500 mr-1.5"></i>畫作創意度 (Creativity)</span>
+                                        <span id="score-creativity" class="text-amber-600 font-black">-- / 100</span>
+                                    </div>
+                                    <div class="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                                        <div id="bar-creativity" class="bg-gradient-to-r from-amber-500 to-yellow-500 h-full rounded-full transition-all duration-1000" style="width: 0%"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Dim 3 -->
+                                <div>
+                                    <div class="flex justify-between text-xs font-bold mb-1">
+                                        <span class="text-slate-700"><i class="fa-solid fa-bullseye text-emerald-500 mr-1.5"></i>主題契合度 (Theme Relevance)</span>
+                                        <span id="score-theme" class="text-emerald-600 font-black">-- / 100</span>
+                                    </div>
+                                    <div class="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                                        <div id="bar-theme" class="bg-gradient-to-r from-emerald-500 to-teal-500 h-full rounded-full transition-all duration-1000" style="width: 0%"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Dim 4 -->
+                                <div>
+                                    <div class="flex justify-between text-xs font-bold mb-1">
+                                        <span class="text-slate-700"><i class="fa-solid fa-droplet text-rose-500 mr-1.5"></i>色彩與構圖 (Color & Composition)</span>
+                                        <span id="score-color" class="text-rose-600 font-black">-- / 100</span>
+                                    </div>
+                                    <div class="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                                        <div id="bar-color" class="bg-gradient-to-r from-rose-500 to-pink-500 h-full rounded-full transition-all duration-1000" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-orange-50/70 border border-orange-100 rounded-2xl p-3 text-[11px] text-slate-600 leading-relaxed">
+                                <i class="fa-solid fa-circle-info text-orange-500 mr-1"></i>
+                                系統將畫作與主題送交多模態大型語言模型（Gemma 4），依固定的四個向度與評分規準進行分析；學生姓名不會傳送給 AI，以減少月暈效應等人為偏誤。AI 分數僅供教師參考，最終評定仍由教師判斷。
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- AI Constructive Feedback Card -->
+                    <div class="bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-xl shadow-orange-500/5 border border-orange-100 space-y-4">
+                        <h4 class="text-base font-bold text-slate-800 flex items-center space-x-2">
+                            <i class="fa-solid fa-comments text-orange-500"></i>
+                            <span>AI 回饋與建議</span>
+                        </h4>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Strengths -->
+                            <div class="bg-emerald-50/60 border border-emerald-100 rounded-2xl p-4 space-y-2">
+                                <h5 class="text-xs font-bold text-emerald-800 flex items-center space-x-1.5">
+                                    <i class="fa-solid fa-circle-check text-emerald-600"></i>
+                                    <span>具體優點 (Strengths)</span>
+                                </h5>
+                                <p id="feedback-strengths" class="text-xs text-slate-600 leading-relaxed">--</p>
+                            </div>
+
+                            <!-- Suggestions -->
+                            <div class="bg-amber-50/60 border border-amber-100 rounded-2xl p-4 space-y-2">
+                                <h5 class="text-xs font-bold text-amber-800 flex items-center space-x-1.5">
+                                    <i class="fa-solid fa-lightbulb text-amber-600"></i>
+                                    <span>精進建議 (Suggestions for Growth)</span>
+                                </h5>
+                                <p id="feedback-suggestions" class="text-xs text-slate-600 leading-relaxed">--</p>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Camera Modal -->
+    <div id="camera-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center">
+                <h3 class="text-base font-bold text-slate-800 flex items-center space-x-2">
+                    <i class="fa-solid fa-camera text-orange-500"></i>
+                    <span>即時拍照擷取畫作</span>
+                </h3>
+                <button onclick="closeCameraModal()" class="text-slate-400 hover:text-slate-600 text-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="relative bg-slate-900 rounded-2xl overflow-hidden aspect-[4/3] flex items-center justify-center">
+                <video id="camera-video" autoplay playsinline class="w-full h-full object-cover"></video>
+                <canvas id="camera-canvas" class="hidden"></canvas>
+            </div>
+            <div class="flex justify-end space-x-3">
+                <button onclick="closeCameraModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition">
+                    取消
+                </button>
+                <button onclick="capturePhoto()" class="px-5 py-2 bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold rounded-xl transition shadow-md shadow-orange-500/20 flex items-center space-x-1.5">
+                    <i class="fa-solid fa-camera"></i>
+                    <span>按下快門拍照</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="text-center py-6 text-xs text-slate-400 border-t border-orange-100 bg-white/50">
+        童心藝彩：AI 創意圖畫輔助評分與儀表板系統 &copy; 2026 國中小藝文教學輔助專用
+    </footer>
+
+    <!-- JavaScript Application Logic -->
     <script>
-        // 主題切換 (預設為淺色底色)
-        function applyTheme(theme) {
-            document.documentElement.setAttribute('data-theme', theme);
-            const glyph = document.querySelector('.theme-toggle .glyph');
-            const text = document.getElementById('themeText');
-            if (glyph && text) {
-                if (theme === 'dark') {
-                    glyph.textContent = '🌙';
-                    text.textContent = '深色模式';
-                } else {
-                    glyph.textContent = '☀️';
-                    text.textContent = '淺色模式';
-                }
+        // ===== 模型設定（Hugging Face Inference Providers + Gemma 4 31B） =====
+        const HF_API_URL = "https://router.huggingface.co/v1/chat/completions";
+        const HF_MODEL = "google/gemma-4-31B-it:novita";
+
+        let uploadedImageBase64 = null;
+        let radarChartInstance = null;
+        let mediaStream = null;
+        let isBGMPlaying = false;
+        let audioCtx = null;
+        let bgmInterval = null;
+        let toastTimer = null;
+
+        // ===== 記住 Token（只存在使用者自己的瀏覽器） =====
+        const tokenInput = document.getElementById('hf-token');
+        const rememberBox = document.getElementById('remember-token');
+        try {
+            const saved = localStorage.getItem('hf_token');
+            if (saved) {
+                tokenInput.value = saved;
+                rememberBox.checked = true;
             }
+        } catch (e) {}
+
+        function syncTokenStorage() {
+            try {
+                if (rememberBox.checked && tokenInput.value.trim()) {
+                    localStorage.setItem('hf_token', tokenInput.value.trim());
+                } else if (!rememberBox.checked) {
+                    localStorage.removeItem('hf_token');
+                }
+            } catch (e) {}
+        }
+        rememberBox.addEventListener('change', syncTokenStorage);
+        tokenInput.addEventListener('change', syncTokenStorage);
+
+        // Toast notification helper
+        function showToast(title, msg, type = 'info') {
+            const toast = document.getElementById('toast');
+            const icon = document.getElementById('toast-icon');
+            document.getElementById('toast-title').innerText = title;
+            document.getElementById('toast-msg').innerText = msg;
+
+            const isError = type === 'error';
+            toast.classList.toggle('border-red-500', isError);
+            toast.classList.toggle('border-amber-500', !isError);
+            icon.className = isError ? 'text-red-500 text-xl' : 'text-amber-500 text-xl';
+            icon.innerHTML = isError
+                ? '<i class="fa-solid fa-circle-exclamation"></i>'
+                : '<i class="fa-solid fa-circle-info"></i>';
+
+            toast.classList.remove('translate-x-[120%]');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toast.classList.add('translate-x-[120%]');
+            }, isError ? 7000 : 3500);
         }
 
-        function toggleTheme() {
-            const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
-            const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            localStorage.setItem('space_theme', nextTheme);
-            applyTheme(nextTheme);
-        }
-
-        // 初始化預設為淺色模式
-        const initialTheme = localStorage.getItem('space_theme') || 'light';
-        applyTheme(initialTheme);
-
-        // 選擇圖片時即時顯示預覽
-        function previewSelectedImage(event) {
+        // Handle File Select
+        function handleFileSelect(event) {
             const file = event.target.files[0];
-            const preview = document.getElementById('imagePreview');
             if (file) {
                 const reader = new FileReader();
                 reader.onload = function(e) {
-                    preview.src = e.target.result;
-                    preview.style.display = 'inline-block';
-                }
+                    uploadedImageBase64 = e.target.result;
+                    displayPreview(uploadedImageBase64);
+                };
                 reader.readAsDataURL(file);
-            } else {
-                preview.src = '';
-                preview.style.display = 'none';
             }
         }
 
-        // 壓縮並轉成 Base64 的前端實作
-        function compressImage(file, maxSize = 1024, quality = 0.85) {
+        function displayPreview(src) {
+            const previewContainer = document.getElementById('preview-container');
+            const uploadPrompt = document.getElementById('upload-prompt');
+            const imgPreview = document.getElementById('image-preview');
+            
+            imgPreview.src = src;
+            uploadPrompt.classList.add('hidden');
+            previewContainer.classList.remove('hidden');
+        }
+
+        function clearImage(event) {
+            event.stopPropagation();
+            event.preventDefault();
+            uploadedImageBase64 = null;
+            document.getElementById('file-input').value = '';
+            document.getElementById('preview-container').classList.add('hidden');
+            document.getElementById('upload-prompt').classList.remove('hidden');
+        }
+
+        // 把圖片縮小並轉成 JPEG，避免檔案太大造成呼叫失敗
+        function compressDataUrl(src, maxSize = 1024, quality = 0.85) {
             return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const img = new Image();
-                    img.onload = function() {
-                        let width = img.width;
-                        let height = img.height;
-                        if (width > height) {
-                            if (width > maxSize) {
-                                height *= maxSize / width;
-                                width = maxSize;
-                            }
-                        } else {
-                            if (height > maxSize) {
-                                width *= maxSize / height;
-                                height = maxSize;
-                            }
-                        }
-                        const canvas = document.createElement('canvas');
-                        canvas.width = width;
-                        canvas.height = height;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0, width, height);
-                        const dataUrl = canvas.toDataURL('image/jpeg', quality);
-                        resolve(dataUrl);
-                    };
-                    img.src = e.target.result;
+                const img = new Image();
+                img.onload = function() {
+                    let width = img.width;
+                    let height = img.height;
+                    if (width > height && width > maxSize) {
+                        height = height * maxSize / width;
+                        width = maxSize;
+                    } else if (height >= width && height > maxSize) {
+                        width = width * maxSize / height;
+                        height = maxSize;
+                    }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#ffffff'; // 透明背景的 PNG 轉成白底
+                    ctx.fillRect(0, 0, width, height);
+                    ctx.drawImage(img, 0, 0, width, height);
+                    resolve(canvas.toDataURL('image/jpeg', quality));
                 };
-                reader.onerror = reject;
-                reader.readAsDataURL(file);
+                img.onerror = () => reject(new Error('圖片讀取失敗，請換一張圖片試試'));
+                img.src = src;
             });
         }
 
-        async function analyzeImage() {
-            const apiKey = document.getElementById('apiKey').value.trim();
-            const imageFile = document.getElementById('imageInput').files[0];
-            let prompt = document.getElementById('promptInput').value.trim();
-            const resultDiv = document.getElementById('result');
-            const submitBtn = document.getElementById('submitBtn');
+        // Camera Modal Functions
+        async function openCameraModal() {
+            const modal = document.getElementById('camera-modal');
+            const video = document.getElementById('camera-video');
+            modal.classList.remove('hidden');
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                video.srcObject = mediaStream;
+            } catch (err) {
+                showToast('相機錯誤', '無法存取相機裝置，請檢查權限設定。', 'error');
+                modal.classList.add('hidden');
+            }
+        }
 
-            if (!apiKey) {
-                alert('請先輸入 Hugging Face Token！');
+        function closeCameraModal() {
+            const modal = document.getElementById('camera-modal');
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+            modal.classList.add('hidden');
+        }
+
+        function capturePhoto() {
+            const video = document.getElementById('camera-video');
+            const canvas = document.getElementById('camera-canvas');
+            canvas.width = video.videoWidth || 640;
+            canvas.height = video.videoHeight || 480;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            uploadedImageBase64 = canvas.toDataURL('image/jpeg');
+            displayPreview(uploadedImageBase64);
+            closeCameraModal();
+            showToast('拍照成功', '已成功擷取學生畫作畫面！');
+        }
+
+        // Web Audio API Gentle BGM
+        function toggleBGM() {
+            const btnText = document.getElementById('bgm-text');
+            const btnIcon = document.getElementById('bgm-icon');
+            
+            if (!isBGMPlaying) {
+                try {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    isBGMPlaying = true;
+                    btnText.innerText = '關閉藝文音樂';
+                    btnIcon.className = 'fa-solid fa-volume-high text-amber-700';
+                    startArtisticBGM();
+                    showToast('音樂已開啟', '正在播放輕柔溫馨的藝文教室背景音樂。');
+                } catch (e) {
+                    showToast('音訊啟動失敗', '瀏覽器阻擋自動播放，請再試一次。');
+                }
+            } else {
+                if (audioCtx) {
+                    audioCtx.close();
+                }
+                if (bgmInterval) clearInterval(bgmInterval);
+                isBGMPlaying = false;
+                btnText.innerText = '開啟藝文音樂';
+                btnIcon.className = 'fa-solid fa-volume-xmark';
+                showToast('音樂已關閉', '已暫停背景音樂。');
+            }
+        }
+
+        function startArtisticBGM() {
+            // Pentatonic / warm chord frequencies
+            const notes = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25]; // C major pentatonic
+            bgmInterval = setInterval(() => {
+                if (!isBGMPlaying || !audioCtx) return;
+                try {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    
+                    const note = notes[Math.floor(Math.random() * notes.length)];
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(note, audioCtx.currentTime);
+
+                    gain.gain.setValueAtTime(0, audioCtx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.04, audioCtx.currentTime + 0.5);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 3.0);
+
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 3.1);
+                } catch(e) {}
+            }, 1200);
+        }
+
+        // ===== 評分提示詞：固定四向度 + 評分規準，只傳主題，不傳學生姓名 =====
+        function buildPrompt(topic) {
+            return `你是一位國中小藝文科老師，正在為學生畫作提供評分參考。本次繪畫主題是「${topic}」。
+
+請依照以下四個向度，各給 0～100 的整數分數，並依作品實際表現拉開分數，不要全部給高分：
+1. lineSmoothness 線條流暢度：線條是否自然、肯定、有控制力。
+2. creativity 畫作創意度：構想、元素組合或表現方式是否新穎、少見、有個人想法。
+3. themeRelevance 主題契合度：畫面內容是否清楚呼應「${topic}」主題。
+4. colorComposition 色彩與構圖：配色是否和諧或有表現力，畫面安排是否有重點與層次。
+
+分數規準：
+- 90～100：該向度表現非常突出
+- 75～89：表現良好
+- 60～74：尚可，有明顯進步空間
+- 0～59：該向度表現不足，或與主題無關
+
+另外請提供：
+- badgeTitle：依作品最大特色給一個 4～8 個字的正向稱號（例如「色彩魔法師」）
+- strengths：用繁體中文寫 2～3 句具體優點，必須指出畫面中實際看得到的元素
+- suggestions：用繁體中文寫 1～2 句具體、可以馬上嘗試的下一步建議
+
+語氣溫暖，適合國中小學生閱讀。如果圖片不是畫作或無法辨識內容，四項分數都給 0，並在 suggestions 說明原因。
+
+只回傳 JSON，不要加任何說明文字或 markdown 符號，格式如下：
+{"lineSmoothness":0,"creativity":0,"themeRelevance":0,"colorComposition":0,"badgeTitle":"","strengths":"","suggestions":""}`;
+        }
+
+        // 從模型回覆中取出 JSON（模型有時會包在 ```json 裡）
+        function parseModelJson(text) {
+            const match = text.match(/\{[\s\S]*\}/);
+            if (!match) throw new Error('AI 回傳的格式無法解析，請再按一次分析');
+            return JSON.parse(match[0]);
+        }
+
+        // 分數檢查：轉成 0～100 的整數
+        function toScore(value) {
+            const n = Math.round(Number(value));
+            if (!Number.isFinite(n)) return 0;
+            return Math.min(100, Math.max(0, n));
+        }
+
+        // ===== 呼叫多模態大型語言模型進行評分 =====
+        async function startAIEvaluation() {
+            const topic = document.getElementById('art-topic').value;
+            const studentName = document.getElementById('student-name').value.trim() || "未具名同學";
+            const token = tokenInput.value.trim();
+            const analyzeBtn = document.getElementById('analyze-btn');
+            const analyzeBtnText = document.getElementById('analyze-btn-text');
+
+            if (!token) {
+                showToast('請先輸入 Token', '請在「AI 連線設定」輸入 Hugging Face Token。', 'error');
+                tokenInput.focus();
                 return;
             }
-            if (!imageFile) {
-                alert('請先上傳一張圖片！');
+            if (!uploadedImageBase64) {
+                showToast('請先上傳或拍照', '必須提供學生畫作圖像才能進行 AI 分析。', 'error');
                 return;
             }
-            if (!prompt) {
-                prompt = "Describe this image in one sentence.";
-            }
+            syncTokenStorage();
 
-            submitBtn.disabled = true;
-            resultDiv.innerText = '處理中，神經網路運算中...';
+            // Show Loading State
+            document.getElementById('empty-state').classList.add('hidden');
+            document.getElementById('dashboard-container').classList.add('hidden');
+            document.getElementById('loading-state').classList.remove('hidden');
+            analyzeBtn.disabled = true;
+            analyzeBtnText.innerText = 'AI 分析中…';
+
+            const loadingTexts = [
+                "AI 正在解析畫作中...",
+                "正在觀察線條與筆觸...",
+                "正在比對主題契合度與創意表現...",
+                "正在整理分數與回饋建議..."
+            ];
+            let step = 0;
+            const loadingInterval = setInterval(() => {
+                step = (step + 1) % loadingTexts.length;
+                document.getElementById('loading-status-text').innerText = loadingTexts[step];
+            }, 2500);
 
             try {
-                const base64Image = await compressImage(imageFile);
-                const response = await fetch("https://router.huggingface.co/v1/chat/completions", {
+                const imageForAI = await compressDataUrl(uploadedImageBase64);
+
+                const response = await fetch(HF_API_URL, {
                     method: "POST",
                     headers: {
-                        "Authorization": `Bearer ${apiKey}`,
+                        "Authorization": `Bearer ${token}`,
                         "Content-Type": "application/json"
                     },
                     body: JSON.stringify({
-                        model: "google/gemma-4-31B-it:novita",
+                        model: HF_MODEL,
                         messages: [{
                             role: "user",
                             content: [
-                                { type: "text", text: prompt },
-                                { type: "image_url", image_url: { url: base64Image } }
+                                { type: "text", text: buildPrompt(topic) },
+                                { type: "image_url", image_url: { url: imageForAI } }
                             ]
                         }],
-                        max_tokens: 300
+                        max_tokens: 800,
+                        temperature: 0.2 // 溫度調低，讓同一張畫的評分更穩定
                     })
                 });
 
-                const data = await response.json();
-                if (response.ok && data.choices && data.choices.length > 0) {
-                    resultDiv.innerText = data.choices[0].message.content;
-                } else {
-                    resultDiv.innerText = `發生錯誤：${data.error?.message || JSON.stringify(data)}`;
+                const data = await response.json().catch(() => ({}));
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        throw new Error('Token 無效或已過期，請確認 HF_TOKEN 是否正確');
+                    }
+                    throw new Error(data.error?.message || data.error || `伺服器回應錯誤（${response.status}）`);
                 }
-            } catch (error) {
-                resultDiv.innerText = `發生錯誤：${error.message}`;
+
+                const content = data.choices?.[0]?.message?.content;
+                if (!content) throw new Error('AI 沒有回傳內容，請再試一次');
+
+                const raw = parseModelJson(content);
+                const result = {
+                    lineSmoothness: toScore(raw.lineSmoothness),
+                    creativity: toScore(raw.creativity),
+                    themeRelevance: toScore(raw.themeRelevance),
+                    colorComposition: toScore(raw.colorComposition),
+                    badgeTitle: raw.badgeTitle || '用心創作的小畫家',
+                    strengths: raw.strengths || '（AI 未提供）',
+                    suggestions: raw.suggestions || '（AI 未提供）'
+                };
+                // 總分由系統計算：四個向度平均
+                result.totalScore = Math.round(
+                    (result.lineSmoothness + result.creativity + result.themeRelevance + result.colorComposition) / 4
+                );
+
+                document.getElementById('loading-state').classList.add('hidden');
+                document.getElementById('dashboard-container').classList.remove('hidden');
+                renderDashboard(studentName, topic, result);
+                showToast('分析完成', 'AI 評分與回饋已產生，分數僅供教師參考。');
+
+            } catch (err) {
+                console.error(err);
+                document.getElementById('loading-state').classList.add('hidden');
+                document.getElementById('empty-state').classList.remove('hidden');
+                showToast('分析失敗', err.message || '發生未知錯誤，請稍後再試。', 'error');
             } finally {
-                submitBtn.disabled = false;
+                clearInterval(loadingInterval);
+                analyzeBtn.disabled = false;
+                analyzeBtnText.innerText = '開始 AI 輔助評分與分析';
             }
+        }
+
+        function renderDashboard(studentName, topic, data) {
+            document.getElementById('result-student').innerText = studentName;
+            document.getElementById('result-topic').innerText = `主題：${topic}`;
+            document.getElementById('score-number').innerText = data.totalScore;
+            document.getElementById('badge-title').innerText = data.badgeTitle;
+
+            document.getElementById('score-line').innerText = `${data.lineSmoothness} / 100`;
+            document.getElementById('bar-line').style.width = `${data.lineSmoothness}%`;
+
+            document.getElementById('score-creativity').innerText = `${data.creativity} / 100`;
+            document.getElementById('bar-creativity').style.width = `${data.creativity}%`;
+
+            document.getElementById('score-theme').innerText = `${data.themeRelevance} / 100`;
+            document.getElementById('bar-theme').style.width = `${data.themeRelevance}%`;
+
+            document.getElementById('score-color').innerText = `${data.colorComposition} / 100`;
+            document.getElementById('bar-color').style.width = `${data.colorComposition}%`;
+
+            document.getElementById('feedback-strengths').innerText = data.strengths;
+            document.getElementById('feedback-suggestions').innerText = data.suggestions;
+
+            // Render Radar Chart
+            renderRadarChart([data.lineSmoothness, data.creativity, data.themeRelevance, data.colorComposition]);
+        }
+
+        function renderRadarChart(scores) {
+            const ctx = document.getElementById('radarChart').getContext('2d');
+            if (radarChartInstance) {
+                radarChartInstance.destroy();
+            }
+
+            radarChartInstance = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['線條流暢度', '畫作創意度', '主題契合度', '色彩與構圖'],
+                    datasets: [{
+                        label: '評分指標',
+                        data: scores,
+                        backgroundColor: 'rgba(249, 115, 22, 0.2)',
+                        borderColor: '#ea580c',
+                        borderWidth: 3,
+                        pointBackgroundColor: '#ea580c',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: '#ea580c'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: {
+                        r: {
+                            min: 0,
+                            max: 100,
+                            angleLines: { color: 'rgba(0, 0, 0, 0.08)' },
+                            grid: { color: 'rgba(0, 0, 0, 0.08)' },
+                            pointLabels: {
+                                font: { size: 12, weight: 'bold', family: 'Noto Sans TC' },
+                                color: '#334155'
+                            },
+                            ticks: {
+                                display: false,
+                                stepSize: 20
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+
+        // Text-to-Speech Feedback Reader
+        function speakFeedback() {
+            if (!('speechSynthesis' in window)) {
+                showToast('不支援語音', '您的瀏覽器不支援語音合成功能。', 'error');
+                return;
+            }
+
+            window.speechSynthesis.cancel();
+            const studentName = document.getElementById('result-student').innerText;
+            const badge = document.getElementById('badge-title').innerText;
+            const strengths = document.getElementById('feedback-strengths').innerText;
+            const suggestions = document.getElementById('feedback-suggestions').innerText;
+            
+            const textToSpeech = `${studentName}同學你好，你的作品獲得了「${badge}」的稱號。具體優點是：${strengths}。給你的精進建議是：${suggestions}。請繼續保持對藝術的熱情！`;
+            
+            const utterance = new SpeechSynthesisUtterance(textToSpeech);
+            utterance.lang = 'zh-TW';
+            utterance.rate = 0.95;
+            utterance.pitch = 1.1;
+
+            window.speechSynthesis.speak(utterance);
+            showToast('開始朗讀', '正在以溫和語調為您朗讀評語...');
         }
     </script>
 </body>
